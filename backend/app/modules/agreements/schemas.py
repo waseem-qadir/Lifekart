@@ -6,6 +6,13 @@ from dateutil.relativedelta import relativedelta
 from pydantic import BaseModel, Field, model_validator
 
 
+class ProductRef(BaseModel):
+    id: uuid.UUID
+    name: str
+
+    model_config = {"from_attributes": True}
+
+
 class AgreementItemCreate(BaseModel):
     product_id: uuid.UUID
     locked_unit_price: Decimal = Field(ge=0)
@@ -23,6 +30,7 @@ class AgreementItemResponse(BaseModel):
     id: uuid.UUID
     agreement_id: uuid.UUID
     product_id: uuid.UUID
+    product: ProductRef | None = None
     locked_unit_price: Decimal
     committed_monthly_qty: float
     frequency_days: int

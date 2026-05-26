@@ -5,6 +5,14 @@ from decimal import Decimal
 from pydantic import BaseModel, Field
 
 
+class ProductRef(BaseModel):
+    id: uuid.UUID
+    name: str
+    unit_size: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
 class GenerateRequest(BaseModel):
     household_id: uuid.UUID | None = None
 
@@ -31,6 +39,7 @@ class SubscriptionResponse(BaseModel):
     household_id: uuid.UUID
     member_id: uuid.UUID | None
     product_id: uuid.UUID
+    product: ProductRef | None = None
     quantity_per_delivery: float
     frequency_days: int
     start_date: date

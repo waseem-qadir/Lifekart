@@ -11,6 +11,9 @@ class CategoryCreate(BaseModel):
     icon: str | None = Field(None, max_length=50)
     unit_type: str = Field(min_length=1, max_length=20)
     avg_lifetime_consumption_per_year: float | None = None
+    description: str | None = None
+    image_url: str | None = None
+    avg_savings: str | None = None
 
 
 class CategoryUpdate(BaseModel):
@@ -19,6 +22,9 @@ class CategoryUpdate(BaseModel):
     icon: str | None = Field(None, max_length=50)
     unit_type: str | None = Field(None, min_length=1, max_length=20)
     avg_lifetime_consumption_per_year: float | None = None
+    description: str | None = None
+    image_url: str | None = None
+    avg_savings: str | None = None
 
 
 class CategoryResponse(BaseModel):
@@ -28,9 +34,13 @@ class CategoryResponse(BaseModel):
     icon: str | None
     unit_type: str
     avg_lifetime_consumption_per_year: float | None
+    description: str | None = None
+    image_url: str | None = None
+    avg_savings: str | None = None
+    productCount: int = Field(default=0, alias="product_count")
     created_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "populate_by_name": True}
 
 
 # ── Manufacturers ──

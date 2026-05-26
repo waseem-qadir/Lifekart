@@ -6,8 +6,17 @@ from app.modules.users.dependencies import require_role
 from app.modules.users.models import User, UserRole
 from app.modules.analytics.schemas import PlatformKpiResponse, LandingPageStatsResponse
 from app.modules.analytics.service import AnalyticsService
+from app.core.config import settings
 
 router = APIRouter(prefix="/analytics")
+
+
+@router.get("/public/config")
+async def public_config():
+    return {
+        "max_lifetime_years": settings.MAX_LIFETIME_YEARS,
+        "currency": "INR",
+    }
 
 
 @router.get("/kpi/savings", response_model=PlatformKpiResponse)

@@ -3,7 +3,7 @@ from datetime import date, datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 
 from app.modules.agreements.models import AgreementItem, WholesaleAgreement
 from app.modules.agreements.schemas import (
@@ -66,11 +66,11 @@ class AgreementService:
                 locked_unit_price=item_data.locked_unit_price,
                 committed_monthly_qty=item_data.committed_monthly_qty,
                 frequency_days=item_data.frequency_days,
-                total_item_value=item_data.locked_unit_price * item_data.committed_monthly_qty * 12,
+                total_item_value=Decimal(str(item_data.locked_unit_price)) * Decimal(str(item_data.committed_monthly_qty)) * 12,
             )
             self.db.add(item)
 
-        await self.db.flush()
+        await self.db.commit()
         return await self._get_with_items(agreement.id)
 
     async def get_my_agreements(self, user_id: uuid.UUID) -> list[WholesaleAgreement]:
@@ -84,16 +84,16 @@ class AgreementService:
         result = await self.db.execute(
             select(WholesaleAgreement)
             .where(WholesaleAgreement.household_id == household.id)
-            .options(selectinload(WholesaleAgreement.items))
+            .options(selectinload(WholesaleAgreement.items).joinedload(AgreementItem.product))
             .order_by(WholesaleAgreement.created_at.desc())
         )
-        return list(result.scalars().all())
+        return list(result.unique().scalars().all())
 
     async def get_agreement(self, agreement_id: uuid.UUID) -> WholesaleAgreement:
         result = await self.db.execute(
             select(WholesaleAgreement)
             .where(WholesaleAgreement.id == agreement_id)
-            .options(selectinload(WholesaleAgreement.items))
+            .options(selectinload(WholesaleAgreement.items).joinedload(AgreementItem.product))
         )
         agreement = result.scalar_one_or_none()
         if not agreement:
@@ -108,7 +108,7 @@ class AgreementService:
 
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(agreement, field, value)
-        await self.db.flush()
+        await self.db.commit()
         return await self._get_with_items(agreement.id)
 
     async def add_item(
@@ -126,10 +126,10 @@ class AgreementService:
             locked_unit_price=data.locked_unit_price,
             committed_monthly_qty=data.committed_monthly_qty,
             frequency_days=data.frequency_days,
-            total_item_value=data.locked_unit_price * data.committed_monthly_qty * 12,
+            total_item_value=Decimal(str(data.locked_unit_price)) * Decimal(str(data.committed_monthly_qty)) * 12,
         )
         self.db.add(item)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(item)
         return item
 
@@ -146,7 +146,7 @@ class AgreementService:
 
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(item, field, value)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(item)
         return item
 
@@ -163,7 +163,7 @@ class AgreementService:
             raise ValueError("Can only remove items from draft agreements")
 
         await self.db.delete(item)
-        await self.db.flush()
+        await self.db.commit()
 
     async def sign_agreement(self, user_id: uuid.UUID, agreement_id: uuid.UUID) -> WholesaleAgreement:
         agreement = await self.get_agreement(agreement_id)
@@ -177,16 +177,19 @@ class AgreementService:
         agreement.status = "active"
         agreement.signed_at = datetime.now(timezone.utc)
 
-        for item in agreement.items:
-            existing = await self.db.execute(
-                select(LifetimeSubscription).where(
-                    LifetimeSubscription.household_id == agreement.household_id,
-                    LifetimeSubscription.product_id == item.product_id,
-                    LifetimeSubscription.source == "direct",
-                    LifetimeSubscription.source_id == agreement.id,
-                )
+        product_ids = [item.product_id for item in agreement.items]
+        existing_subs_result = await self.db.execute(
+            select(LifetimeSubscription).where(
+                LifetimeSubscription.household_id == agreement.household_id,
+                LifetimeSubscription.product_id.in_(product_ids),
+                LifetimeSubscription.source == "direct",
+                LifetimeSubscription.source_id == agreement.id,
             )
-            if existing.scalar_one_or_none():
+        )
+        existing_product_ids = {sub.product_id for sub in existing_subs_result.scalars().all()}
+
+        for item in agreement.items:
+            if item.product_id in existing_product_ids:
                 continue
 
             sub = LifetimeSubscription(
@@ -207,11 +210,11 @@ class AgreementService:
             self.db.add(sub)
 
         agreement.total_contract_value = sum(
-            (item.locked_unit_price or 0) * item.committed_monthly_qty * 12
+            (Decimal(str(item.locked_unit_price or 0))) * Decimal(str(item.committed_monthly_qty)) * 12
             for item in agreement.items
         )
 
-        await self.db.flush()
+        await self.db.commit()
         return await self._get_with_items(agreement.id)
 
     async def cancel_agreement(self, user_id: uuid.UUID, agreement_id: uuid.UUID, reason: str = "") -> WholesaleAgreement:
@@ -234,14 +237,14 @@ class AgreementService:
         for sub in result.scalars().all():
             sub.status = "cancelled"
 
-        await self.db.flush()
+        await self.db.commit()
         return await self._get_with_items(agreement.id)
 
     async def _get_with_items(self, agreement_id: uuid.UUID) -> WholesaleAgreement:
         result = await self.db.execute(
             select(WholesaleAgreement)
             .where(WholesaleAgreement.id == agreement_id)
-            .options(selectinload(WholesaleAgreement.items))
+            .options(selectinload(WholesaleAgreement.items).joinedload(AgreementItem.product))
         )
         return result.scalar_one()
 

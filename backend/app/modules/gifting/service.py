@@ -45,8 +45,8 @@ class GiftingService:
             locked_price = product.unit_price_wholesale
             duration_years = data.end_age - item_data.age_trigger
             deliveries_per_year = 365 / item_data.frequency_days
-            item_total = locked_price * item_data.quantity_per_delivery * deliveries_per_year * duration_years
-            total_value += Decimal(str(item_total))
+            item_total = locked_price * Decimal(str(item_data.quantity_per_delivery)) * Decimal(str(deliveries_per_year)) * Decimal(str(duration_years))
+            total_value += item_total
             items_data.append((item_data, locked_price))
 
         gift = GiftOrder(

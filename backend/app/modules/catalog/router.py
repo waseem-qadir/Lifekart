@@ -58,10 +58,22 @@ async def get_category(
     db: AsyncSession = Depends(get_db),
 ):
     service = CatalogService(db)
-    try:
-        return await service.get_category_by_id(category_id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    category = await service.get_category_by_id_rich(category_id)
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    return category
+
+
+@router.get("/categories/slug/{slug}", response_model=CategoryResponse)
+async def get_category_by_slug(
+    slug: str,
+    db: AsyncSession = Depends(get_db),
+):
+    service = CatalogService(db)
+    category = await service.get_category_by_slug_rich(slug)
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    return category
 
 
 @router.patch("/categories/{category_id}", response_model=CategoryResponse)

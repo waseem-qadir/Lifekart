@@ -3,7 +3,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -20,6 +20,9 @@ class ProductCategory(Base):
     unit_type: Mapped[str] = mapped_column(String(20), nullable=False)
     avg_lifetime_consumption_per_year: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     max_age_limit_years: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    avg_savings: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     products = relationship("Product", back_populates="category")

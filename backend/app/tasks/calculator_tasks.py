@@ -118,7 +118,6 @@ async def _create_progression_subscriptions(db, household_id, member, category, 
                 LifetimeSubscription.household_id == household_id,
                 LifetimeSubscription.member_id == member.id,
                 LifetimeSubscription.product_id == rule.specific_product_id,
-                LifetimeSubscription.status == "active",
             )
         )
         if existing.scalar_one_or_none():
@@ -133,8 +132,8 @@ async def _create_progression_subscriptions(db, household_id, member, category, 
             start_date=start_date,
             end_date=end_date,
             next_delivery_date=start_date,
-            status="active",
-            source="direct",
+            status="paused",
+            source="ai_generated",
             locked_unit_price=rule.specific_product.unit_price_wholesale,
             price_ceiling_pct=ceiling_pct,
         )
@@ -189,7 +188,6 @@ async def _create_simple_subscription(db, household_id, member, category, today,
             LifetimeSubscription.household_id == household_id,
             LifetimeSubscription.member_id == member.id,
             LifetimeSubscription.product_id == product.id,
-            LifetimeSubscription.status == "active",
         )
     )
     if existing.scalar_one_or_none():
@@ -204,8 +202,8 @@ async def _create_simple_subscription(db, household_id, member, category, today,
         start_date=today,
         end_date=end_date,
         next_delivery_date=today,
-        status="active",
-        source="direct",
+        status="paused",
+        source="ai_generated",
         locked_unit_price=product.unit_price_wholesale,
         price_ceiling_pct=ceiling_pct,
     )

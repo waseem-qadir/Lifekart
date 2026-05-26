@@ -42,41 +42,125 @@ class CatalogService:
             icon=data.icon,
             unit_type=data.unit_type,
             avg_lifetime_consumption_per_year=data.avg_lifetime_consumption_per_year,
+            description=data.description,
+            image_url=data.image_url,
+            avg_savings=data.avg_savings,
         )
         self.db.add(category)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(category)
         return category
 
-    async def get_categories(self, skip: int = 0, limit: int = 100) -> list[ProductCategory]:
-        result = await self.db.execute(
-            select(ProductCategory).offset(skip).limit(limit).order_by(ProductCategory.name)
-        )
-        return list(result.scalars().all())
+    async def get_categories(self, skip: int = 0, limit: int = 100) -> list[dict]:
+        from sqlalchemy import func
 
-    async def get_category_by_id(self, category_id: uuid.UUID) -> ProductCategory:
+        result = await self.db.execute(
+            select(
+                ProductCategory,
+                func.count(Product.id).label("product_count"),
+            )
+            .outerjoin(Product, Product.category_id == ProductCategory.id)
+            .group_by(ProductCategory.id)
+            .offset(skip)
+            .limit(limit)
+            .order_by(ProductCategory.name)
+        )
+        rows = result.all()
+
+        categories = []
+        for cat, count in rows:
+            cat_dict = {
+                "id": cat.id,
+                "name": cat.name,
+                "slug": cat.slug,
+                "icon": cat.icon,
+                "unit_type": cat.unit_type,
+                "avg_lifetime_consumption_per_year": cat.avg_lifetime_consumption_per_year,
+                "description": cat.description,
+                "image_url": cat.image_url,
+                "avg_savings": cat.avg_savings,
+                "product_count": count,
+                "created_at": cat.created_at,
+            }
+            categories.append(cat_dict)
+
+        return categories
+
+    async def get_category_by_id(self, category_id: uuid.UUID) -> ProductCategory | None:
         result = await self.db.execute(
             select(ProductCategory).where(ProductCategory.id == category_id)
         )
-        category = result.scalar_one_or_none()
-        if not category:
-            raise ValueError("Category not found")
-        return category
+        return result.scalar_one_or_none()
 
-    async def get_category_by_slug(self, slug: str) -> ProductCategory:
+    async def get_category_by_id_rich(self, category_id: uuid.UUID) -> dict | None:
+        result = await self.db.execute(
+            select(
+                ProductCategory,
+                func.count(Product.id).label("product_count"),
+            )
+            .outerjoin(Product, Product.category_id == ProductCategory.id)
+            .where(ProductCategory.id == category_id)
+            .group_by(ProductCategory.id)
+        )
+        row = result.first()
+        if not row:
+            return None
+
+        cat, count = row
+        return {
+            "id": cat.id,
+            "name": cat.name,
+            "slug": cat.slug,
+            "icon": cat.icon,
+            "unit_type": cat.unit_type,
+            "avg_lifetime_consumption_per_year": cat.avg_lifetime_consumption_per_year,
+            "description": cat.description,
+            "image_url": cat.image_url,
+            "avg_savings": cat.avg_savings,
+            "product_count": count,
+            "created_at": cat.created_at,
+        }
+
+    async def get_category_by_slug(self, slug: str) -> ProductCategory | None:
         result = await self.db.execute(
             select(ProductCategory).where(ProductCategory.slug == slug)
         )
-        category = result.scalar_one_or_none()
-        if not category:
-            raise ValueError("Category not found")
-        return category
+        return result.scalar_one_or_none()
+
+    async def get_category_by_slug_rich(self, slug: str) -> dict | None:
+        result = await self.db.execute(
+            select(
+                ProductCategory,
+                func.count(Product.id).label("product_count"),
+            )
+            .outerjoin(Product, Product.category_id == ProductCategory.id)
+            .where(ProductCategory.slug == slug)
+            .group_by(ProductCategory.id)
+        )
+        row = result.first()
+        if not row:
+            return None
+
+        cat, count = row
+        return {
+            "id": cat.id,
+            "name": cat.name,
+            "slug": cat.slug,
+            "icon": cat.icon,
+            "unit_type": cat.unit_type,
+            "avg_lifetime_consumption_per_year": cat.avg_lifetime_consumption_per_year,
+            "description": cat.description,
+            "image_url": cat.image_url,
+            "avg_savings": cat.avg_savings,
+            "product_count": count,
+            "created_at": cat.created_at,
+        }
 
     async def update_category(self, category_id: uuid.UUID, data: CategoryUpdate) -> ProductCategory:
         category = await self.get_category_by_id(category_id)
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(category, field, value)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(category)
         return category
 
@@ -88,7 +172,7 @@ class CatalogService:
         if list(product_count.scalars().all()):
             raise ValueError("Cannot delete category with existing products")
         await self.db.delete(category)
-        await self.db.flush()
+        await self.db.commit()
 
     # ── Manufacturers ──
 
@@ -118,7 +202,7 @@ class CatalogService:
             contact_email=data.contact_email,
         )
         self.db.add(manufacturer)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(manufacturer)
         return manufacturer
 
@@ -150,14 +234,14 @@ class CatalogService:
         manufacturer = await self.get_manufacturer_by_id(manufacturer_id)
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(manufacturer, field, value)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(manufacturer)
         return manufacturer
 
     async def verify_manufacturer(self, manufacturer_id: uuid.UUID) -> Manufacturer:
         manufacturer = await self.get_manufacturer_by_id(manufacturer_id)
         manufacturer.is_verified = True
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(manufacturer)
         return manufacturer
 
@@ -227,14 +311,14 @@ class CatalogService:
         product = await self.get_product_by_id(product_id)
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(product, field, value)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(product)
         return product
 
     async def delete_product(self, product_id: uuid.UUID) -> None:
         product = await self.get_product_by_id(product_id)
         product.is_active = False
-        await self.db.flush()
+        await self.db.commit()
 
     # ── Substitutions ──
 
@@ -251,7 +335,7 @@ class CatalogService:
             priority_rank=data.priority_rank,
         )
         self.db.add(substitution)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(substitution)
         return substitution
 
@@ -271,7 +355,7 @@ class CatalogService:
         if not sub:
             raise ValueError("Substitution not found")
         await self.db.delete(sub)
-        await self.db.flush()
+        await self.db.commit()
 
     # ── Progression Rules ──
 
@@ -286,7 +370,7 @@ class CatalogService:
             end_age_months=data.end_age_months,
         )
         self.db.add(rule)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(rule)
         return rule
 
@@ -306,13 +390,11 @@ class CatalogService:
         if not rule:
             raise ValueError("Progression rule not found")
         await self.db.delete(rule)
-        await self.db.flush()
+        await self.db.commit()
 
     async def find_healthy_alternative(
         self, product_id: uuid.UUID, required_tags: list[str] | None = None, forbidden_tags: list[str] | None = None
     ) -> Product | None:
-        from sqlalchemy import and_, or_, cast, String
-
         result = await self.db.execute(select(Product).where(Product.id == product_id))
         product = result.scalar_one_or_none()
         if not product:
@@ -326,22 +408,12 @@ class CatalogService:
         )
 
         if required_tags:
-            required_set = set(required_tags)
-            query = query.where(
-                or_(*[
-                    Product.health_tags.cast(String).contains(tag)
-                    for tag in required_set
-                ])
-            )
+            for tag in required_tags:
+                query = query.where(Product.health_tags.has_key(tag))
 
         if forbidden_tags:
-            forbidden_set = set(forbidden_tags)
-            query = query.where(
-                and_(*[
-                    ~Product.health_tags.cast(String).contains(tag)
-                    for tag in forbidden_set
-                ])
-            )
+            for tag in forbidden_tags:
+                query = query.where(~Product.health_tags.has_key(tag))
 
         query = query.order_by(Product.unit_price_wholesale).limit(1)
         result = await self.db.execute(query)

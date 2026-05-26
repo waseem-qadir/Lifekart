@@ -3,6 +3,7 @@ from datetime import date, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.modules.calculator.models import LifetimeSubscription
 from app.modules.calculator.schemas import SubscriptionUpdate
@@ -25,13 +26,13 @@ class SubscriptionService:
 
         query = select(LifetimeSubscription).where(
             LifetimeSubscription.household_id == household.id
-        )
+        ).options(selectinload(LifetimeSubscription.product))
         if status:
             query = query.where(LifetimeSubscription.status == status)
         query = query.order_by(LifetimeSubscription.start_date)
 
         result = await self.db.execute(query)
-        return list(result.scalars().all())
+        return list(result.unique().scalars().all())
 
     async def get_subscription(self, subscription_id: uuid.UUID) -> LifetimeSubscription:
         result = await self.db.execute(
@@ -50,7 +51,7 @@ class SubscriptionService:
 
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(sub, field, value)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(sub)
         return sub
 
@@ -60,7 +61,7 @@ class SubscriptionService:
         if sub.status != "active":
             raise ValueError(f"Cannot pause a subscription with status '{sub.status}'")
         sub.status = "paused"
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(sub)
         return sub
 
@@ -70,7 +71,7 @@ class SubscriptionService:
         if sub.status != "paused":
             raise ValueError(f"Cannot resume a subscription with status '{sub.status}'")
         sub.status = "active"
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(sub)
         return sub
 
@@ -78,7 +79,7 @@ class SubscriptionService:
         sub = await self.get_subscription(subscription_id)
         await self._verify_ownership(user_id, sub.household_id)
         sub.status = "cancelled"
-        await self.db.flush()
+        await self.db.commit()
 
     async def adjust_size(
         self, user_id: uuid.UUID, subscription_id: uuid.UUID

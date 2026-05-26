@@ -72,7 +72,7 @@ class ProfilingService:
             )
             self.db.add(health_profile)
 
-        await self.db.flush()
+        await self.db.commit()
         return await self._get_household_with_members(household.id)
 
     async def get_my_household(self, user_id: uuid.UUID) -> Household:
@@ -88,7 +88,7 @@ class ProfilingService:
         household = await self.get_my_household(user_id)
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(household, field, value)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(household)
         return await self._get_household_with_members(household.id)
 
@@ -133,7 +133,7 @@ class ProfilingService:
             allergies=[],
         )
         self.db.add(health_profile)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(member)
         return member
 
@@ -162,7 +162,7 @@ class ProfilingService:
 
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(member, field, value)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(member)
         return member
 
@@ -176,4 +176,4 @@ class ProfilingService:
             raise ValueError("Cannot deactivate the 'self' member")
 
         member.is_active = False
-        await self.db.flush()
+        await self.db.commit()
